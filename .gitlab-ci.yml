@@ -1,0 +1,53 @@
+image: docker:latest
+
+stages:
+  - setup
+  - build
+  - deploy
+
+variables:
+  SPRING_PROFILES_ACTIVE: "production"
+  REMOTE_SERVER_IP: "172.31.2.51"
+  REMOTE_SERVER_USER: "ubuntu"
+  #REMOTE_SERVER_SSH_PRIVATE_KEY: "your-ssh-private-key"  # Add the private key as a CI/CD variable in GitLab
+
+before_script:
+  - echo "$REMOTE_SERVER_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - ssh-keyscan -H $REMOTE_SERVER_IP >> ~/.ssh/known_hosts
+  #- echo "User your-new-user" >> ~/.ssh/config  # Add this line to specify the new user
+
+setup_docker:
+  stage: setup
+  script:
+    - echo "Setting up Docker on the remote server"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo apt-get update -qy"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo apt-get install -y docker.io"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo systemctl start docker"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo systemctl enable docker"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo usermod -aG docker ubuntu"
+
+install_docker_compose:
+  stage: setup
+  script:
+    - echo "Installing Docker Compose on the remote server"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)' -o /usr/local/bin/docker-compose"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo chmod +x /usr/local/bin/docker-compose"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "docker-compose --version"
+
+
+build:
+  stage: build
+  script:
+    - echo "Building java docker image"
+    - docker-compose build'
+
+deploy:
+  stage: deploy
+  only:
+    - master  # Trigger this job only when changes are pushed to the master branch
+  script:
+    - echo "Deploying Docker containers to remote server"
+    - scp docker-compose.yml $REMOTE_SERVER_USER@$REMOTE_SERVER_IP:/tmp/docker-compose.yml
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "docker-compose -f /tmp/docker-compose.yml pull"
+    - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "docker-compose -f /tmp/docker-compose.yml up -d"
