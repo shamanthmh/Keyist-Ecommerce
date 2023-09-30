@@ -9,6 +9,7 @@ variables:
   SPRING_PROFILES_ACTIVE: "production"
   REMOTE_SERVER_IP: "172.31.2.51"
   REMOTE_SERVER_USER: "ubuntu"
+  DEPLOYMENT_TAGS: "gitlab"
   #REMOTE_SERVER_SSH_PRIVATE_KEY: "your-ssh-private-key"  # Add the private key as a CI/CD variable in GitLab
 
 before_script:
@@ -19,6 +20,8 @@ before_script:
 
 setup_docker:
   stage: setup
+  tags:
+    - $DEPLOYMENT_TAGS
   script:
     - echo "Setting up Docker on the remote server"
     - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo apt-get update -qy"
@@ -29,6 +32,8 @@ setup_docker:
 
 install_docker_compose:
   stage: setup
+  tags:
+    - $DEPLOYMENT_TAGS
   script:
     - echo "Installing Docker Compose on the remote server"
     - ssh $REMOTE_SERVER_USER@$REMOTE_SERVER_IP "sudo curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)' -o /usr/local/bin/docker-compose"
@@ -38,6 +43,8 @@ install_docker_compose:
 
 build:
   stage: build
+  tags:
+    - $DEPLOYMENT_TAGS
   script:
     - echo "Building java docker image"
     - docker-compose build'
@@ -45,7 +52,9 @@ build:
 deploy:
   stage: deploy
   only:
-    - master  # Trigger this job only when changes are pushed to the master branch
+    - master 
+  tags:
+    - $DEPLOYMENT_TAGS # Trigger this job only when changes are pushed to the master branch
   script:
     - echo "Deploying Docker containers to remote server"
     - scp docker-compose.yml $REMOTE_SERVER_USER@$REMOTE_SERVER_IP:/tmp/docker-compose.yml
